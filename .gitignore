@@ -1,6 +1,7 @@
 Project/.idea/
 Project/.vscode/
 *.png
+*.jpg
 Project/Examples/
 Project/Lib/.idea/
 Project/Lib/lib_python/.idea/

@@ -1,0 +1,19 @@
+[package]
+name = "lib_rust"
+version = "0.1.0"
+authors = ["songtoan272 <toancs272@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "ml_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+ndarray = { version = "0.13.0", features = ["blas"] }
+ndarray-linalg = { version = "0.12.0", features = ["netlib"] }
+ndarray-rand = "0.11.0"
+netlib-src = {version = "0.7.4", features = ["system"]}
+rand = "0.7.3"
+array2d = "0.2.1"

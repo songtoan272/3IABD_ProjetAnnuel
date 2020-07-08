@@ -1,0 +1,6 @@
+cargo:rustc-link-lib=dylib=gfortran
+cargo:rustc-link-lib=dylib=blas
+cargo:rustc-link-lib=dylib=lapack
+cargo:rustc-link-lib=dylib=cblas
+cargo:rustc-link-lib=dylib=lapacke
+cargo:rustc-link-lib=dylib=tmglib

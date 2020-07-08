@@ -1,0 +1,14 @@
+Project/.idea/
+Project/.vscode/
+*.png
+Project/Examples/
+Project/Lib/.idea/
+Project/Lib/lib_python/.idea/
+Project/Lib/lib_python/.ipynb_checkpoints/
+Project/Lib/lib_python/NOTEBOOK_test_mlp.ipynb
+Project/Lib/lib_python/__pycache__/
+Project/Lib/lib_python/test_case.py
+Project/Tests/.ipynb_checkpoints/
+Project/Tests/Notebook _ CAS DE TESTS.ipynb
+
+

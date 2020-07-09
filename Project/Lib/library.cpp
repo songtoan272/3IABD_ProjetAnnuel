@@ -7,7 +7,23 @@
 #include <iomanip>
 #include <thread>
 #include <chrono>
+#include <math.h>
 
+#include "src/alglibinternal.h"
+#include "src/alglibmisc.h"
+#include "src/ap.h"
+#include "src/dataanalysis.h"
+#include "src/diffequations.h"
+#include "src/fasttransforms.h"
+#include "src/integration.h"
+#include "src/interpolation.h"
+#include "src/linalg.h"
+#include "src/optimization.h"
+#include "src/solvers.h"
+#include "src/specialfunctions.h"
+#include "src/statistics.h"
+
+using namespace alglib;
 using namespace Eigen;
 using namespace std;
 
@@ -634,7 +650,6 @@ extern "C" {
         for(auto i = 0; i < samples; i++){
             auto distance = _get_distance_norme_two(rbf->nb_feature, input, rbf->dataset + i * rbf->nb_feature);
             for(auto j = 0; j < rbf->nb_outputs; j++){
-                //rbf->result[j] += rbf->w[i][j] * exp((0 - rbf->alpha) * (distance * distance));
                 rbf->result[j] += rbf->w[i][j] * exp(0 - (rbf->alpha * pow(distance, 2)));
             }
         }
@@ -676,18 +691,176 @@ extern "C" {
     //-- Debut SVM -----------------------------------------------------------------------------------------------
 
     struct SVM{
-        double* w;
+        double* W;
+        int w_size;
     } typedef SVM;
 
+    DLLEXPORT SVM* svm_create_model(int nb_features){
+        auto model = new SVM;
+        model->W = new double[nb_features + 1];
+        return model;
+    }
 
+    double kernel_trick(double* X, double* Y, int nb_features){
+        double s = 0.0;
+        for(auto i = 0; i < nb_features; i++){
+            s += exp(0-(X[i] * X[i])) * exp(0-(Y[i] * Y[i])) * exp(2 * X[i] * Y[i]);
+        }
+        return s;
+    }
 
+    DLLEXPORT void svm_train_model(SVM* model, double* inputs, int nb_inputs, int nb_features, double* labels, bool use_kernel_trick=false){
 
+        auto linear = new double[nb_inputs];
+        for(auto i = 0; i < nb_inputs; i++){
+            linear[i] = -1;
+        }
 
+        real_1d_array lbnd;
+        real_1d_array ubnd;
+        integer_1d_array ct;
+        ct.setlength(nb_inputs + 1);
+        lbnd.setlength(nb_inputs);
+        ubnd.setlength(nb_inputs);
+
+        double ma = numeric_limits<float>::max();
+        auto constraint = new double[(nb_inputs + 1) * (nb_inputs + 1)];
+        int o = 0;
+        for(auto i = 0; i < nb_inputs; i++){
+            for(auto j = 0; j < nb_inputs; j++){
+                if(i == j){
+                    constraint[o] = 1.0;
+                } else {
+                    constraint[o] = 0.0;
+                }
+                o++;
+            }
+            constraint[o] = 0.0;
+            ct[i] = 1;
+            o++;
+        }
+
+        for(int i = 0; i < nb_inputs; i++){
+            lbnd[i] = 0.0;
+            ubnd[i] = ma;
+            constraint[o] = labels[i];
+            o++;
+        }
+        constraint[o] = 0.0;
+        ct[nb_inputs] = 0;
+
+        auto kernel = new double[nb_inputs * nb_inputs];
+        o = 0;
+        for(auto i = 0; i < nb_inputs; i++){
+            for(auto j = 0; j < nb_inputs; j++){
+                auto s = 0.0;
+                if(use_kernel_trick){
+                    s = kernel_trick(inputs + i * nb_features, inputs + j * nb_features, nb_features);
+                } else {
+                    for(auto l = 0; l < nb_features; l++){
+                        s += inputs[i * nb_features + l] * inputs[j * nb_features + l];
+                    }
+                }
+                kernel[o] = labels[i] * labels[j] * s;
+                o++;
+            }
+        }
+
+        real_2d_array a;
+        a.setcontent(nb_inputs, nb_inputs, kernel);
+        real_1d_array b;
+        b.setcontent(nb_inputs, linear);
+        real_2d_array c;
+        c.setcontent(nb_inputs + 1, nb_inputs + 1, constraint);
+
+        real_1d_array x;
+        minqpstate state;
+        minqpreport rep;
+
+        minqpcreate(nb_inputs, state);
+        minqpsetquadraticterm(state, a);
+        minqpsetlinearterm(state, b);
+        minqpsetbc(state, lbnd, ubnd);
+        minqpsetlc(state, c, ct);
+
+        cout << c.tostring(1).c_str() << endl;
+        cout << ct.tostring().c_str() << endl;
+
+        o = 0;
+        for(auto i = 0; i < nb_inputs; i++){
+            for(auto j = 0; j < nb_inputs; j++){
+                printf("%f  ", kernel[o]);
+                o++;
+            }
+            printf("\n");
+        }
+
+        minqpsetalgobleic(state, 0, 0, 0.01, 0);
+        minqpoptimize(state);
+        minqpresults(state, x, rep);
+
+        for(auto i = 0; i < nb_inputs; i++){
+            printf("[");
+            for(auto j = 0; j < nb_features; j++){
+                printf("%f, ", inputs[i * nb_features + j]);
+            }
+            printf("]  :  %f\n", x[i]);
+        }
+
+        int m = -1;
+        auto W = new double[nb_features+1];
+        for(auto i = 0; i < nb_features + 1; i++){
+            W[i] = 0.0;
+        }
+        auto max = x[0];
+        for(auto i = 0; i < nb_inputs; i++){
+            if(x[i] > max){
+                m = i;
+                max = x[i];
+            }
+            for(auto j = 0; j < nb_features; j++){
+                W[j+1] += x[i] * labels[i] * inputs[i * nb_features + j];
+            }
+        }
+
+        if(m != -1){
+            W[0] = (1 / labels[m]);
+            for(auto i = 0; i < nb_features; i++){
+                W[0] -= W[i+1] * inputs[m * nb_features + i];
+            }
+        } else {
+            W[0] = 0;
+        }
+
+        for(auto i = 0; i < nb_features + 1; i++){
+            model->W[i] = W[i];
+        }
+        model->w_size = nb_features + 1;
+
+        delete[] W;
+        delete[] linear;
+        delete[] constraint;
+        delete[] kernel;
+    }
+
+    DLLEXPORT int svm_predict(SVM* model, double* input){
+        double s = model->W[0];
+        for(auto i = 0; i < model->w_size; i++){
+            s += model->W[i+1] * input[i];
+        }
+
+        return s > 0.0 ? 1.0 : -1.0;
+    }
+
+    DLLEXPORT void svm_dispose(SVM* model){
+        delete[] model->W;
+    }
 
     //-- Fin SVM -----------------------------------------------------------------------------------------------
 }
 
 int main(){
+
 
     int nb_sample = 3;
     int nb_features = 2;
@@ -704,6 +877,13 @@ int main(){
     X[2] = new double[nb_features];
     X[2][0] = 3.0;
     X[2][1] = 3.0;
+/*
+    X[3] = new double[nb_features];
+    X[3][0] = 4.0;
+    X[3][1] = 4.0;
+    X[4] = new double[nb_features];
+    X[4][0] = 3.0;
+    X[4][1] = 1.0;*/
 
     auto Y = new double*[nb_sample];
     Y[0] = new double[nb_features_outputs];
@@ -712,6 +892,11 @@ int main(){
     Y[1][0] = -1.0;
     Y[2] = new double[nb_features_outputs];
     Y[2][0] = -1.0;
+/*
+    Y[3] = new double[nb_features_outputs];
+    Y[3][0] = -1.0;
+    Y[4] = new double[nb_features_outputs];
+    Y[4][0] = 1.0;*/
 
     auto x_flattened = new double[nb_sample * nb_features];
     int c = 0;
@@ -759,6 +944,26 @@ int main(){
     X_test[7][0] = 1.5;
     X_test[7][1] = 4.51;
 
+    auto model = svm_create_model(nb_features);
+    auto model_t = svm_create_model(nb_features);
+
+    svm_train_model(model, x_flattened, nb_sample, nb_features, y_flattened, false);
+    svm_train_model(model_t, x_flattened, nb_sample, nb_features, y_flattened, true);
+
+    for(auto i = 0; i < nb_sample; i++){
+        auto k = svm_predict(model, X[i]);
+        printf("[%f, %f] : %f  %d\n", X[i][0], X[i][1], Y[i][0], k);
+    }
+    printf("\n\n");
+    for(auto i = 0; i < nb_sample; i++){
+        auto k = svm_predict(model_t, X[i]);
+        printf("[%f, %f] : %f  %d\n", X[i][0], X[i][1], Y[i][0], k);
+    }
+
+    svm_dispose(model);
+    svm_dispose(model_t);
+
+    /*
     auto x_test_flattened = new double[nb_sample_test * nb_features];
     c = 0;
     for(auto i = 0; i < nb_sample_test; i++){
@@ -778,5 +983,7 @@ int main(){
     }
 
     rbf_dispose(rbf);
+*/
+
     return 0;
 }

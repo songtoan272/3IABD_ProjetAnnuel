@@ -7,11 +7,13 @@ mod lin_reg;
 mod classification;
 mod rbf;
 mod mlp_array2d;
+mod svm;
 
-pub use lin_reg::LinearRegModel;
-pub use classification::ClassificationModel;
-pub use rbf::RBF;
-pub use mlp_array2d::MLP;
+use lin_reg::LinearRegModel;
+use classification::ClassificationModel;
+use rbf::RBF;
+use mlp_array2d::MLP;
+use svm::SVM;
 
 
 fn from_raw_to_arr2(
@@ -56,6 +58,27 @@ fn from_arr2_to_vec1(arr: &Array2<f64>) -> Vec<f64>{
         }
     }
     res
+}
+
+fn from_raw_to_vec2(
+    raw_ptr: *mut f64, 
+    nrows: usize, 
+    ncols: usize) 
+    -> Vec<Vec<f64>>
+{
+    assert!(!raw_ptr.is_null());
+    let _arr = from_raw_to_arr2d(raw_ptr, nrows, ncols);
+    _arr.as_rows()
+}
+
+
+#[no_mangle]
+pub extern fn dispose_ptr(ptr: *mut f64){
+    unsafe{
+        let v = ptr.as_mut().unwrap();
+        Box::from_raw(v);
+    }
+    // println!("disposed")
 }
 
 
@@ -365,6 +388,47 @@ pub extern fn train_mlp(
     model.train_mlp(&_x_arr, &_y_arr, nb_iter);
 }
 
+#[no_mangle]
+pub extern fn train_mlp_return_metrics(
+    model: &mut MLP,
+    x: *mut f64,
+    y: *mut f64,
+    nb_inputs: u64,
+    x_val: *mut f64,
+    y_val: *mut f64,
+    nb_vals: u64,
+    nb_iter: u64)
+    -> *const f64
+{
+    let _x_arr = from_raw_to_arr2d(x, nb_inputs as usize, model.get_n_features());
+    let _y_arr = from_raw_to_arr2d(y, nb_inputs as usize, model.get_n_outputs());
+    let _x_arr_val = from_raw_to_arr2d(x_val, nb_vals as usize, model.get_n_features());
+    let _y_arr_val = from_raw_to_arr2d(y_val, nb_vals as usize, model.get_n_outputs());
+    let metrics = model.train_mlp_return_metrics(&_x_arr, &_y_arr, &_x_arr_val, &_y_arr_val, nb_iter);
+    let metrics_vec: Vec<f64> = metrics.as_rows().iter().flat_map(|v| v.iter()).cloned().collect();
+    Box::leak(metrics_vec.into_boxed_slice()).as_ptr()
+}
+
+
+#[no_mangle]
+pub extern fn train_epoch_mlp(
+    model: &mut MLP,
+    x: *mut f64,
+    y: *mut f64,
+    nb_inputs: u64,
+    x_val: *mut f64,
+    y_val: *mut f64,
+    nb_vals: u64)
+    -> *const f64
+{
+    let _x_arr = from_raw_to_arr2d(x, nb_inputs as usize, model.get_n_features());
+    let _y_arr = from_raw_to_arr2d(y, nb_inputs as usize, model.get_n_outputs());
+    let _x_arr_val = from_raw_to_arr2d(x_val, nb_vals as usize, model.get_n_features());
+    let _y_arr_val = from_raw_to_arr2d(y_val, nb_vals as usize, model.get_n_outputs());
+    let metrics = model.train_mlp_epoch(&_x_arr, &_y_arr, &_x_arr_val, &_y_arr_val);
+    Box::leak(metrics.into_boxed_slice()).as_ptr()
+}
+
 
 #[no_mangle]
 pub extern fn predict_mlp(
@@ -389,6 +453,30 @@ pub extern fn predict_mlp(
 #[no_mangle]
 pub extern fn del_mlp(model: *mut MLP){
     MLP::del_mlp(model);
+}
+
+pub extern fn calculate_mse_mlp(
+    model: &mut MLP,
+    y: *mut f64,
+    y_preds: *mut f64,
+    nb_inputs: u64)
+    -> f64
+{
+    let _y_arr = from_raw_to_arr2d(y, nb_inputs as usize, model.get_n_outputs());
+    let _y_arr_pred = from_raw_to_arr2d(y_preds, nb_inputs as usize, model.get_n_outputs());
+    model.calculate_loss_mse(&_y_arr, &_y_arr_pred)
+}
+
+pub extern fn calculate_accuracy_mlp(
+    model: &mut MLP,
+    y: *mut f64,
+    y_preds: *mut f64,
+    nb_inputs: u64)
+    -> f64
+{
+    let _y_arr = from_raw_to_arr2d(y, nb_inputs as usize, model.get_n_outputs());
+    let _y_arr_pred = from_raw_to_arr2d(y_preds, nb_inputs as usize, model.get_n_outputs());
+    model.calculate_accuracy(&_y_arr, &_y_arr_pred)
 }
 
 
@@ -452,11 +540,68 @@ pub extern fn set_mode_mlp(model: &mut MLP, mode: bool){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Functions for SVM exposed to Python
 #[no_mangle]
-pub extern fn dispose_ptr(ptr: *mut f64){
-    unsafe{
-        let v = ptr.as_mut().unwrap();
-        Box::from_raw(v);
-    }
-    // println!("disposed")
+pub extern fn init_svm(
+    n_features: u64
+)-> *mut SVM
+{
+    let svm = SVM::init_svm(n_features as usize);
+    let boxed = Box::new(svm);
+    Box::into_raw(boxed)
+}
+
+
+#[no_mangle]
+pub extern fn train_svm(
+    model: &mut SVM,
+    x: *mut f64,
+    y: *mut f64,
+    nb_inputs: u64,
+    nb_iter: u64)
+{
+    let _x_arr = from_raw_to_vec2(x, nb_inputs as usize, model.get_n_features());
+    let _y_arr = unsafe{from_raw_parts(y, nb_inputs as usize)}.to_owned();
+    model.train_svm(&_x_arr, &_y_arr);
+}
+
+
+#[no_mangle]
+pub extern fn predict_svm(
+    model: &SVM, 
+    x_test: *mut f64, 
+    nb_inputs: u64)
+    -> *const f64
+{
+    let _x_test_arr = from_raw_to_vec2(x_test, nb_inputs as usize, model.get_n_features());
+    let y_pred = model.predict_svm(&_x_test_arr);
+    // println!("rust = {:#?}", &res);
+    let slice = y_pred.into_boxed_slice();
+    // let ptr = slice.as_ptr();
+    Box::leak(slice).as_ptr()
+    // ptr
+}
+
+#[no_mangle]
+pub extern fn del_svm(model: *mut SVM){
+    SVM::del_svm(model);
+}
+
+
+#[no_mangle]
+pub extern fn get_weights_svm(model: &SVM) -> *const f64{
+    Box::leak(model.get_weights().to_owned().into_boxed_slice()).as_ptr()
 }

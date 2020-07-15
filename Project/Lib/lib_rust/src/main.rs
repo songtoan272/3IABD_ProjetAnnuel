@@ -1,28 +1,37 @@
 
-use array2d::Array2D;
-use ndarray::{Array, arr2, arr1, Array1, Array2};
-mod lin_reg;
-mod classification;
-mod mlp_array2d;
+// use array2d::Array2D;
+// use ndarray::{Array, arr2, arr1, Array1, Array2};
+// mod lin_reg;
+// mod classification;
+// mod mlp_array2d;
 mod rbf;
+mod svm;
+use svm::SVM;
 
 
 pub fn main(){
 
-    let x: Array2D<f64> = Array2D::from_rows(&vec![
-        vec![1., 0.],
-        vec![0., 1.],
-        vec![0., 0.],
-        vec![1., 1.]
-    ]);
+
+    let x: Vec<Vec<f64>> = vec![
+        vec![0.5, 0.7],
+        vec![0.4, 0.5],
+        vec![0.6, 0.6],
+        vec![0.8, 0.1],
+        vec![0.3, 0.1]];
 
     
-    let y: Array2D<f64> = Array2D::from_rows(&vec![
-        vec![1.],
-        vec![1.],
-        vec![-1.],
-        vec![-1.]
-    ]);
+    let y: Vec<f64> = vec![
+        -1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        1.0
+    ];
+    let mut svm: SVM = SVM::init_svm(x[0].len());
+    svm.train_svm(&x, &y);
+    let y_pred = svm.predict_svm(&x);
+    println!("y_pred = {:#?}", y_pred);
+
     // let y: Array2D<f64> = Array2D::from_rows(&vec![
     //     vec![1., -1., -1.],
     //     vec![-1., 1., -1.],
@@ -46,18 +55,18 @@ pub fn main(){
     // // model.train_rbf(&x, &y, true, "lloyd");
     // let y_pred = model.predict_rbf(&x);
     
-    let hidden_layer_sizes: Vec<usize> = vec![x.num_columns(), 5, y.num_columns()];
+    // let hidden_layer_sizes: Vec<usize> = vec![x.num_columns(), 5, y.num_columns()];
 
-    let lr = 0.1;
+    // let lr = 0.1;
 
-    let mut model: mlp_array2d::MLP = mlp_array2d::MLP::init_mlp(hidden_layer_sizes, lr, true);
+    // let mut model: mlp_array2d::MLP = mlp_array2d::MLP::init_mlp(hidden_layer_sizes, lr, true);
 
-    model.train_mlp(&x, &y, 100000);
+    // model.train_mlp(&x, &y, 100000);
     
-    let y_pred: Array2D<f64> = model.predict_mlp(&x);
+    // let y_pred: Array2D<f64> = model.predict_mlp(&x);
 
-    println!("weights = {:#?}", model.get_weights());
-    println!("y_pred = {:#?}", y_pred);
+    // println!("weights = {:#?}", model.get_weights());
+    // println!("y_pred = {:#?}", y_pred);
 
 
 

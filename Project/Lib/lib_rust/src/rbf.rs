@@ -176,7 +176,7 @@ impl RBF{
                 }
             }
         }
-        self.gamma = (max_dist / self.n_centroids as f64).sqrt()
+        self.gamma = (max_dist / (self.n_centroids as f64)).sqrt()
     }
 
 

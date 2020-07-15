@@ -39,6 +39,57 @@ impl MLP{
         return res;
     }
 
+    
+    pub fn calculate_loss_mse(
+        &self,
+        outputs: &Array2D<f64>,
+        pred: &Array2D<f64>
+    ) -> f64{
+        let nb_samples = outputs.num_rows();
+        let nb_outputs = self.get_n_outputs();
+
+        let mut se = 0.0;
+        for i in 0..nb_samples{
+            let mut moy_dist = 0.0;
+            for j in 0..nb_outputs{
+                let a = pred[(i, j)] - outputs[(i, j)];
+                moy_dist += a*a;
+            }
+            se += moy_dist / (nb_outputs as f64);
+        }
+        return se / (nb_samples as f64);
+    }
+
+    
+    pub fn calculate_accuracy(
+        &self, 
+        outputs: &Array2D<f64>,
+        pred: &Array2D<f64>
+    ) -> f64 
+    {
+        let nb_samples = outputs.num_rows();
+        let nb_outputs = self.get_n_outputs();
+
+        let mut nb_success = 0;
+        for i in 0..nb_samples{
+            let mut max_pred = std::f64::MIN;
+            let mut idx_max_pred = nb_outputs+1;
+            let mut idx_out = nb_outputs+1;
+            for j in 0..nb_outputs{
+                if outputs[(i, j)] == 1.{
+                    idx_out = j;
+                }
+                if pred[(i, j)] > max_pred{
+                    max_pred = pred[(i, j)];
+                    idx_max_pred = j;
+                }
+                // is_true = is_true && ((outputs[(i, j)] * pred[(i, j)]) >= 0.0);
+            }
+            if idx_max_pred == idx_out {nb_success += 1};
+        }
+        return (nb_success as f64) / (nb_samples as f64)
+    }
+
 
 
     ///Initialize the weights of all layers in the network
@@ -192,7 +243,7 @@ impl MLP{
         &mut self,
         inputs: &Array2D<f64>,
         outputs: &Array2D<f64>,
-        nb_iter: u64)
+        nb_iters: u64)
     {
         if inputs.num_columns() != self.get_n_features() || outputs.num_columns() != self.get_n_outputs(){
             panic!("Number of features and number of outputs do not conform 
@@ -200,7 +251,7 @@ impl MLP{
         }
         //set random generator
         let mut rng = thread_rng();
-        for _i in 0..nb_iter {
+        for _i in 0..nb_iters {
             //Take a random example input_k
             let k = rng.gen_range(0, inputs.num_rows());
             let input_k = MLP::get_row(inputs, k);
@@ -209,7 +260,91 @@ impl MLP{
             let delta_back: Vec<Array2D<f64>> = self.feed_backward(&output_k, &outputs_forward);
             self.update_weights(&outputs_forward, &delta_back);
         }
-        self.n_iters += nb_iter;
+        self.n_iters += nb_iters;
+    }
+
+
+    /// train mlp and also return loss and accuracy on train dataset 
+    /// and on validation dataset.
+    /// Return: nb_iterss * [loss_train, acc_train, loss_val, acc_val]
+    pub fn train_mlp_return_metrics(
+        &mut self,
+        inputs: &Array2D<f64>,
+        outputs: &Array2D<f64>,
+        inputs_val: &Array2D<f64>,
+        outputs_val: &Array2D<f64>,
+        nb_iters: u64)
+        -> Array2D<f64>
+    {
+        if inputs.num_columns() != self.get_n_features() || outputs.num_columns() != self.get_n_outputs(){
+            panic!("Number of features and number of outputs do not conform 
+            to attributs of the models.")
+        }
+        if inputs_val.num_columns() != self.get_n_features() || outputs_val.num_columns() != self.get_n_outputs(){
+            panic!("Number of features and number of outputs do not conform 
+            to attributs of the models.")
+        }
+        let mut metrics: Array2D<f64> = Array2D::filled_with(0.0, nb_iters as usize, 4);
+        //set random generator
+        let mut rng = thread_rng();
+        for _i in 0..nb_iters {
+            //Take a random example input_k
+            let k = rng.gen_range(0, inputs.num_rows());
+            let input_k = MLP::get_row(inputs, k);
+            let output_k = MLP::get_row(outputs, k);
+            let outputs_forward: Vec<Array2D<f64>> = self.feed_forward(&input_k);
+            let delta_back: Vec<Array2D<f64>> = self.feed_backward(&output_k, &outputs_forward);
+            self.update_weights(&outputs_forward, &delta_back);
+            let y_pred = self.predict_mlp(inputs);
+            let y_val_pred = self.predict_mlp(inputs_val);
+            metrics[(_i as usize, 0)] = self.calculate_loss_mse(outputs, &y_pred);
+            metrics[(_i as usize, 1)] = self.calculate_accuracy(outputs, &y_pred);
+            metrics[(_i as usize, 2)] = self.calculate_loss_mse(outputs_val, &y_val_pred);
+            metrics[(_i as usize, 3)] = self.calculate_accuracy(outputs_val, &y_val_pred);
+        }
+
+        self.n_iters += nb_iters;
+        return metrics;
+    }
+
+
+
+    /// train model with one epoch = run through all samples once 
+    /// return loss and accuracy on train dataset and on validation dataset.
+    /// Return: [loss_train, acc_train, loss_val, acc_val]
+    pub fn train_mlp_epoch(
+        &mut self,
+        inputs: &Array2D<f64>,
+        outputs: &Array2D<f64>,
+        inputs_val: &Array2D<f64>,
+        outputs_val: &Array2D<f64>)
+        -> Vec<f64>
+    {
+        if inputs.num_columns() != self.get_n_features() || outputs.num_columns() != self.get_n_outputs(){
+            panic!("Number of features and number of outputs do not conform 
+            to attributs of the models.")
+        }
+        if inputs_val.num_columns() != self.get_n_features() || outputs_val.num_columns() != self.get_n_outputs(){
+            panic!("Number of features and number of outputs do not conform 
+            to attributs of the models.")
+        }
+        let mut metrics: Vec<f64> = vec![0.0; 4];
+        for k in 0..inputs.num_rows() {
+            let input_k = MLP::get_row(inputs, k);
+            let output_k = MLP::get_row(outputs, k);
+            let outputs_forward: Vec<Array2D<f64>> = self.feed_forward(&input_k);
+            let delta_back: Vec<Array2D<f64>> = self.feed_backward(&output_k, &outputs_forward);
+            self.update_weights(&outputs_forward, &delta_back);
+        }
+        let y_pred = self.predict_mlp(inputs);
+        let y_val_pred = self.predict_mlp(inputs_val);
+        metrics[0] = self.calculate_loss_mse(outputs, &y_pred);
+        metrics[1] = self.calculate_accuracy(outputs, &y_pred);
+        metrics[2] = self.calculate_loss_mse(outputs_val, &y_val_pred);
+        metrics[3] = self.calculate_accuracy(outputs_val, &y_val_pred);
+
+        self.n_iters += inputs.num_rows() as u64;
+        return metrics;
     }
 
 

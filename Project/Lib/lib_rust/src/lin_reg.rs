@@ -1,4 +1,4 @@
-use ndarray::{Array, Array2, stack, Axis};
+use ndarray::{Array, Array2, stack, Axis, arr1};
 use ndarray_linalg::solve::Inverse;
 
 #[derive(Debug, Clone)]
@@ -26,10 +26,13 @@ impl LinearRegModel{
 
     fn normalize_equation(&mut self, x: &Array2<f64>, y: &Array2<f64>) {
         let x_transpose = x.to_shared().reversed_axes();
-        let x_dot = x_transpose.dot(x);
+        let x_dot: Array2<f64> = x_transpose.dot(x);
         let x_dot_reversed: Array2<f64> = match x_dot.inv(){
             Result::Ok(arr) => arr,
-            Result::Err(err) => panic!("{}", err),
+            Result::Err(err) => {
+                let eps = Array2::from_diag(&arr1(vec![1.; x.ncols()].as_slice())) * 0.001;
+                (x_dot + eps).inv().unwrap()
+            },
         };
         self.theta = x_dot_reversed.dot(&x_transpose).dot(y)
     }

@@ -5,7 +5,7 @@ import os
 import sys
 
 # Import the compiled Rust library
-my_dll_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/lib_rust/target/debug/libml_rust.so"
+my_dll_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/lib_rust/target/release/libml_rust.so"
 rust_lib = CDLL(my_dll_path)
 
 

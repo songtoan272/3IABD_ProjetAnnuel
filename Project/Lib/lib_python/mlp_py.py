@@ -3,10 +3,11 @@ from ctypes import *
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+
 # from Lib.lib_python.utils import *
 
 # Import the compiled Rust library
-my_dll_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/lib_rust/target/debug/libml_rust.so"
+my_dll_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/lib_rust/target/release/libml_rust.so"
 # print(my_dll_path)
 rust_lib = CDLL(my_dll_path)
 
@@ -63,7 +64,8 @@ class PyMLP:
         # self.bias_ = self.get_bias()
 
     def fit(self, X, Y, nb_iters: int):
-        """Fit the model with a set of examples of inputs and outputs"""
+        """Fit the model with a set of examples of inputs and outputs.
+        The model picks randomly a sample to update its weights for each iteration."""
         train_mlp = rust_lib.train_mlp
         train_mlp.argtypes = [POINTER(RustMLPModel),
                               POINTER(c_double),
@@ -85,6 +87,7 @@ class PyMLP:
 
     def fit_retrieve_metrics(self, X, Y, X_val, Y_val, nb_iters: int):
         """Fit the model with a set of examples of inputs and outputs.
+        The model picks randomly a sample to update its weights every iteration.
         Return loss and accuracy of train dataset and validation dataset
         for each iteration."""
         train_mlp_metrics = rust_lib.train_mlp_return_metrics
@@ -117,14 +120,18 @@ class PyMLP:
         return metrics
 
     def fit_epoch(self, X, Y, X_val, Y_val):
+        """Train the model for one epoch. Each epoch, the model uses every sample of dataset once
+        to update its weights.
+
+        Return: an array of metrics contains [train_loss, train_accuracy, val_loss, val_accuracy]"""
         train_epoch = rust_lib.train_epoch_mlp
         train_epoch.argtypes = [POINTER(RustMLPModel),
-                                      POINTER(c_double),
-                                      POINTER(c_double),
-                                      c_uint64,
-                                      POINTER(c_double),
-                                      POINTER(c_double),
-                                      c_uint64]
+                                POINTER(c_double),
+                                POINTER(c_double),
+                                c_uint64,
+                                POINTER(c_double),
+                                POINTER(c_double),
+                                c_uint64]
         train_epoch.restype = POINTER(c_double)
 
         X = X.astype('float64', copy=False)
@@ -140,9 +147,9 @@ class PyMLP:
             np.ctypeslib.as_ctypes(Y_val.flatten()),
             c_uint64(X_val.shape[0]))
 
-        metrics = np.ctypeslib.as_array(_metrics, shape=(1, 4)).astype(dtype='float64')
+        metrics = np.ctypeslib.as_array(_metrics, shape=(4,)).astype(dtype='float64')
         dispose_ptr(_metrics)
-        return metrics
+        return metrics.tolist()
 
     def predict(self, x_test, convert=False):
         """Predict new samples using the calculated weights saved in the model"""
@@ -158,11 +165,13 @@ class PyMLP:
                                   c_uint64(x_test.shape[0]))
         _y_pred_np = np.ctypeslib.as_array(y_predicted, shape=(x_test.shape[0], self.n_outputs)).astype(dtype='float64')
         dispose_ptr(y_predicted)
+
         def convert_row(row):
             m = max(row)
-            res = np.where(row==m, 1., -1.)
+            res = np.where(row == m, 1., -1.)
             # res = np.where(row > 0.0, 1., -1.)
             return res
+
         if convert:
             return np.array([convert_row(pred) for pred in _y_pred_np])
         else:
@@ -219,7 +228,8 @@ class PyMLP:
         return list_b
 
     def confusion_matrix(self, y_true, y_pred):
-        res = [[0, 0, 0] for i in range(3)]
+        n = self.n_outputs
+        res = [[0 for i in range(n)] for j in range(n)]
         nb_samples = y_true.shape[0]
         for i in range(nb_samples):
             idx_true = list(y_true[i]).index(max(y_true[i]))
@@ -277,13 +287,13 @@ if __name__ == "__main__":
     layers = [X.shape[1], Y.shape[1]]
     mode = True
     mlp = PyMLP(layers, lr, mode)
-    metrics = mlp.fit_retrieve_metrics(X, Y, X, Y, 1000)
+    metrics = mlp.fit_epoch(X, Y, X, Y)
     print('{: <20}'.format('Train Loss') + '  |  ' + '{: <20}'.format('Train Acc') + '  |  ' +
           '{: <20}'.format('Val Loss') + '  |  ' + '{: <20}'.format('Val Acc'))
-    for i in range(X.shape[0]):
+    for i in range(1):
         print('{: <20}'.format(metrics[i, 0]) + '  |  ' + '{: <20}'.format(metrics[i, 1]) + '  |  ' +
               '{: <20}'.format(metrics[i, 2]) + '  |  ' + '{: <20}'.format(metrics[i, 3]))
-    y_pred = mlp.predict(X) 
+    y_pred = mlp.predict(X)
     y_pred_converted = mlp.predict(X, convert=True)
     # y_pred_translated = np.array(
     #     [[1, -1, -1] if pred[0] == max(pred) else
@@ -299,5 +309,5 @@ if __name__ == "__main__":
             print('{: <20}'.format(str(Y[i])) + '  |  ' + '{: <20}'.format(str(y_pred_converted[i])) +
                   '  |  ' + '{: <20}'.format(str(y_pred[i].tolist())))
     print(((y_pred_converted - Y) != 0).sum(axis=0))
-    print(confusion_matrix(Y, y_pred_converted))
+    print(mlp.confusion_matrix(Y, y_pred_converted))
     print("weights=", mlp.get_weight())

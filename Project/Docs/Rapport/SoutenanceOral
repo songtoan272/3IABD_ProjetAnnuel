@@ -1,0 +1,35 @@
+Diapo 3 : Les if c'est de la merde en gros (T)->7
+4 : Machine learning <3
+5 :
+6 : 
+7 : techno utilisé (T)
+8 - 14 : comment on a géré le dataset (perso, comment recup les image, normalisation...) (G)
+
+15 : dire les differents algo qu'on va voir (T)->20
+16 : principe du liniaire -> avantage/incovenient (T)
+18 : intro du mlp (T)
+19 : enchaintement de lineaire horizontalement et verticalement (T)
+20 : mise en pratique (T)
+21 : RBF fonction de tes voisin / zone d'influence / (CAO) -> 26
+22 : mise en pratique (CAO)
+23 : kmeans / cluster (CAO)
+24 : SVM principe -> la meilleure séparation linéaire / comment choisir les points (CAO)
+25 : mise en pratique (CAO)
+26 : kernel -> explication (CAO)
+
+27 : on va voir ce que ca fais quand sur le dataset (G)->33
+28 : avec un mlp 
+29 : un des premier / explication des metrics Loss Arc / Comment améliorer (reduire l'alpha)
+30 : explique les courbes c'est plus stable / coment améliorer
+31 : reduit le alpha / changement de structure / comment on a chercher le meilleure structure
+32 : LE BEST (G)
+33 : comparation avec keras (pourquoi keras) (CAO)->36
+34 : nous c'est pluss instable mais c'est normal en sois / mais ca se ressemble pas mal 
+34 : autre exemple
+35 : temps d'exe (keras 6x plus vite) pourquoi (GPU, nous a une parti en python(encule nos stat))
+
+37 : Applicatif (T)->39
+38 : techno utlisé (php, hrml, css, javascript, bash) 
+39 : demo / explciation rapide 
+
+40 : Bilan de groupe puis chacun individuellement (Free)

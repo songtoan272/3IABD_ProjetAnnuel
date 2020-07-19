@@ -570,8 +570,7 @@ pub extern fn train_svm(
     model: &mut SVM,
     x: *mut f64,
     y: *mut f64,
-    nb_inputs: u64,
-    nb_iter: u64)
+    nb_inputs: u64)
 {
     let _x_arr = from_raw_to_vec2(x, nb_inputs as usize, model.get_n_features());
     let _y_arr = unsafe{from_raw_parts(y, nb_inputs as usize)}.to_owned();

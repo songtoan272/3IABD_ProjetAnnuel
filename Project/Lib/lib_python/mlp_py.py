@@ -3,6 +3,7 @@ from ctypes import *
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pickle
 
 # from Lib.lib_python.utils import *
 
@@ -82,8 +83,8 @@ class PyMLP:
                   c_uint64(X.shape[0]),
                   c_uint64(nb_iters))
 
-        # self.coef_ = self.get_weight()
-        # self.bias_ = self.get_bias()
+        self.coef_ = self.get_weight()
+        self.bias_ = self.get_bias()
 
     def fit_retrieve_metrics(self, X, Y, X_val, Y_val, nb_iters: int):
         """Fit the model with a set of examples of inputs and outputs.
@@ -264,6 +265,44 @@ class PyMLP:
 
         set_learning_rate(self.rust_model_, c_double(lr))
         self.lr = lr
+
+    def save_model(self, filename):
+        save_path = os.getcwd() + f"/models/{filename}.txt"
+        with open(save_path, "w") as f:
+            f.write(str(self.n_layers))
+            f.write("\n")
+            f.write(str(self.layer_sizes))
+            f.write("\n")
+            f.write(str(self.lr))
+            f.write("\n")
+            for w in self.get_weight():
+                for x in w.flatten():
+                    f.write("%1.5f " %x)
+                f.write("\n")
+            for b in self.get_bias():
+                f.write(str(b))
+                f.write("\n")
+        # filehandler = open(save_path, 'w')
+        # pickle.dump(self, filehandler)
+        # filehandler.close()
+
+    @staticmethod
+    def load_model(path):
+        filehandler = open(path, 'r')
+        mlp = pickle.load(filehandler)
+        filehandler.close()
+        return mlp
+
+    def __str__(self, show_weights=False):
+        res = f"number of layers: {self.n_layers}\n"
+        res += f"layers: {self.layer_sizes}\n"
+        res += f"learning rate: {self.lr}\n"
+        if show_weights:
+            res += "weights:\n"
+            for w in self.coef_:
+                res += str(w) + "\n"
+            res += str(self.bias_) +"\n"
+        return res
 
 
 if __name__ == "__main__":

@@ -11,17 +11,17 @@ from sklearn.utils import shuffle
 
 from Lib.lib_python.mlp_py import PyMLP
 
-# DEFINE GLOBAL PARAMETERS
-batch_size = 1
-epochs = 100
-suffle = True
-IMG_HEIGHT = 16
-IMG_WIDTH = 16
+# DEFINE GLOBAL PARAMETERS OF MODEL
+BATCH_SIZE = 1
+EPOCHS = 140
+SUFFLE = True
+IMG_HEIGHT = 32
+IMG_WIDTH = 32
 IMG_CHANNELS = 3
-color_mode = 'rgb'
+COLOR_MODE = 'rgb'
 CLASS_NAMES = np.array(['makise', 'cc', 'rem'])
-nb_train = 500
-nb_val = 5
+NB_TRAIN = 5000
+NB_VAL = 500
 
 # Data dir
 train_dir = f"../../Dataset/{IMG_HEIGHT}x{IMG_WIDTH}/classic/train"
@@ -35,24 +35,20 @@ train_image_generator = ImageDataGenerator(rotation_range=30,
                                            zoom_range=0.3,
                                            horizontal_flip=True,
                                            rescale=1. / 255)
-validation_image_generator = ImageDataGenerator(rotation_range=30,
-                                                width_shift_range=0.3,
-                                                height_shift_range=0.3,
-                                                brightness_range=(0.5, 1.5),
+validation_image_generator = ImageDataGenerator(horizontal_flip=True,
                                                 zoom_range=0.3,
-                                                horizontal_flip=True,
                                                 rescale=1. / 255)
-train_data_gen = train_image_generator.flow_from_directory(batch_size=batch_size,
+train_data_gen = train_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
                                                            directory=train_dir,
                                                            shuffle=True,
-                                                           color_mode=color_mode,
+                                                           color_mode=COLOR_MODE,
                                                            target_size=(IMG_HEIGHT, IMG_WIDTH),
                                                            classes=list(CLASS_NAMES),
                                                            class_mode='categorical')
-validation_data_gen = validation_image_generator.flow_from_directory(batch_size=batch_size,
+validation_data_gen = validation_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
                                                                      directory=test_dir,
                                                                      shuffle=True,
-                                                                     color_mode=color_mode,
+                                                                     color_mode=COLOR_MODE,
                                                                      target_size=(IMG_HEIGHT, IMG_WIDTH),
                                                                      classes=list(CLASS_NAMES),
                                                                      class_mode='categorical')
@@ -80,7 +76,7 @@ def data_generator(train_data_gen, validation_data_gen, nb_img_train, nb_img_val
     return (x_train, y_train, x_val, y_val)
 
 
-x_train, y_train, x_val, y_val = data_generator(train_data_gen, validation_data_gen, nb_train, nb_val)
+x_train, y_train, x_val, y_val = data_generator(train_data_gen, validation_data_gen, NB_TRAIN, NB_VAL)
 print("x_train: ", x_train.shape)
 print("y_train: ", y_train.shape)
 print("x_val: ", x_val.shape)
@@ -110,10 +106,10 @@ def train_model(model, xtrain, ytrain, xval, yval, epochs, suffle=False):
     return train_loss, train_acc, val_loss, val_acc, time
 
 
-def plot_metrics(metrics):
+def plot_metrics(metrics, save_path):
     train_loss, train_acc, val_loss, val_acc, time = metrics
     epoch_val = [i for i in range(1, len(train_loss) + 1)]
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsi)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(6.4, 12.8))
     ax1.plot(epoch_val, train_loss, c="red", label="Train")
     ax1.plot(epoch_val, val_loss, c="green", label="Validation")
     ax1.legend(loc='upper right')
@@ -125,9 +121,10 @@ def plot_metrics(metrics):
     ax3.plot(epoch_val, time, c="black")
     ax3.set_title("Time execution")
     plt.show()
+    fig.savefig(save_path)
 
 
-def save_metrics(mlp, metrics, path, conf_mats=None):
+def save_metrics(self, metrics, path, conf_mats=None):
     train_loss, train_acc, val_loss, val_acc, time_exe = metrics
     with open(path, "w") as f:
         f.write("MLP\n")
@@ -135,7 +132,7 @@ def save_metrics(mlp, metrics, path, conf_mats=None):
         f.write("\n")
         f.write(f"learning rate: {mlp.lr}\n")
         f.write(f"Epochs: {len(train_loss)}\n")
-        f.write(f"Shuffle: {suffle}\n")
+        f.write(f"Shuffle: {SUFFLE}\n")
         f.write(f"Image sizes: {IMG_WIDTH} x {IMG_HEIGHT}\n")
         f.write(f"Time execution: {time_exe[-1]} seconds\n\n")
         for u in range(len(train_loss)):
@@ -153,7 +150,7 @@ def save_metrics(mlp, metrics, path, conf_mats=None):
                 line += "    "
             line += "\n"
             f.write(line)
-        f.write('----------------------------------------------')
+        f.write('----------------------------------------------\n')
         f.write('Test -----------------------------------------\n')
         for i in range(mlp.n_outputs):
             line = ""
@@ -164,24 +161,37 @@ def save_metrics(mlp, metrics, path, conf_mats=None):
             f.write(line)
         f.write('----------------------------------------------')
 
-# Create
-layer_sizes = [x_train.shape[1], 256, 48, y_train.shape[1]]
-lr = 0.001
-mlp = PyMLP(layer_sizes, lr, True)
-#Train
-metrics = train_model(mlp, x_train, y_train, x_val, y_val, epochs, suffle=suffle)
-print("Train done")
-#Predict
-y_pred_train = mlp.predict(x_train, convert=True)
-y_pred_val = mlp.predict(x_val, convert=True)
-print(y_pred_train.shape)
-print(y_pred_val.shape)
-print("Predict done")
-#Confustion matrix
-confu_train = mlp.confusion_matrix(y_train, y_pred_train)
-confu_val = mlp.confusion_matrix(y_val, y_pred_val)
-#Plot and save
-plot_metrics(metrics)
-save_path = os.getcwd() + f"/metrics/mlp-{IMG_WIDTH}x{IMG_HEIGHT}-001-shuffled.txt"
-save_metrics(mlp, metrics, save_path, conf_mats=(confu_train, confu_val))
-print("Plot and save done")
+
+if __name__ == "__main__":
+    # Create
+    layer_sizes = [x_train.shape[1], 300, 300, y_train.shape[1]]
+    lr = 0.0008
+    mlp = PyMLP(layer_sizes, lr, True)
+
+    #Train
+    metrics = train_model(mlp, x_train, y_train, x_val, y_val, EPOCHS, suffle=SUFFLE)
+    print("Train done")
+
+    #Predict
+    y_pred_train = mlp.predict(x_train, convert=True)
+    y_pred_val = mlp.predict(x_val, convert=True)
+    print(y_pred_train.shape)
+    print(y_pred_val.shape)
+    print("Predict done")
+
+    #Confustion matrix
+    confu_train = mlp.confusion_matrix(y_train, y_pred_train)
+    confu_val = mlp.confusion_matrix(y_val, y_pred_val)
+
+    #Plot and save metrics
+    filename = f"self-{IMG_WIDTH}x{IMG_HEIGHT}-0008-shuffled-fixed"
+    save_path = os.getcwd() + f"/metrics/{filename}"
+    plot_metrics(metrics, save_path+".png")
+    save_metrics(mlp, metrics, save_path+".txt", conf_mats=(confu_train, confu_val))
+    print("Plot and save done")
+
+    #Save and load model
+    save_path = os.getcwd() + f"/models/{filename}.mlp"
+    mlp.save_model(filename)
+    # loaded_mlp = mlp.load_model(save_path)
+    # print(loaded_mlp)

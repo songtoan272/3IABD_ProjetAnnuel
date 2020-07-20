@@ -264,7 +264,7 @@ impl MLP{
     }
 
 
-    /// train mlp and also return loss and accuracy on train dataset 
+    /// train self and also return loss and accuracy on train dataset
     /// and on validation dataset.
     /// Return: nb_iterss * [loss_train, acc_train, loss_val, acc_val]
     pub fn train_mlp_return_metrics(
@@ -351,7 +351,8 @@ impl MLP{
 
     pub fn predict_mlp(
         &self, 
-        inputs_test: &Array2D<f64>) 
+        inputs_test: &Array2D<f64>
+    )
         -> Array2D<f64> 
     {
         if inputs_test.num_columns() != self.get_n_features(){
@@ -361,6 +362,28 @@ impl MLP{
             let mut pred: Array2D<f64> = Array2D::filled_with(0.0, inputs_test.num_rows(), self.get_n_outputs());
             for k in 0.. inputs_test.num_rows(){
                 let _outputs = self.feed_forward(&MLP::get_row(inputs_test, k));
+                // if convert {
+                //     let mut max: f64 = _outputs[self.n_layers-1][(0, 0)];
+                //     let mut idmax = 0;
+                //     for j in 1.._outputs[self.n_layers-1].num_columns(){
+                //         if _outputs[self.n_layers-1][(0, j)] > max{
+                //             max = _outputs[self.n_layers-1][(0, j)];
+                //             idmax = j;
+                //         }
+                //     }
+                //     for j in 0.._outputs[self.n_layers-1].num_columns(){
+                //         if j == idmax{
+                //             pred[(k, j)] = 1.;
+                            
+                //         }else{
+                //             pred[(k, j)] = -1.;
+                //         }
+                //     }
+                // }else{
+                //     for j in 0.._outputs[self.n_layers-1].num_columns(){
+                //         pred[(k, j)] = _outputs[self.n_layers-1][(0, j)];
+                //     }
+                // }
                 for j in 0.._outputs[self.n_layers-1].num_columns(){
                     pred[(k, j)] = _outputs[self.n_layers-1][(0, j)];
                 }

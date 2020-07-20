@@ -1,27 +1,14 @@
 #include <random>
-#include <iostream>
 #include <Eigen/Dense>
 #include <fstream>
 #include <iomanip>
 #include <ctime>
-#include <iomanip>
 #include <thread>
 #include <chrono>
 #include <math.h>
 
 #include "src/alglibinternal.h"
-#include "src/alglibmisc.h"
-#include "src/ap.h"
 #include "src/dataanalysis.h"
-#include "src/diffequations.h"
-#include "src/fasttransforms.h"
-#include "src/integration.h"
-#include "src/interpolation.h"
-#include "src/linalg.h"
-#include "src/optimization.h"
-#include "src/solvers.h"
-#include "src/specialfunctions.h"
-#include "src/statistics.h"
 
 using namespace alglib;
 using namespace Eigen;
@@ -147,6 +134,59 @@ extern "C" {
         }
     }
 
+    DLLEXPORT void linear_save_model(double* model, int nb_features, char* path_char){
+        std::ofstream file;
+        std::string path = path_char;
+
+        auto t = std::time(nullptr);
+        auto tm = *std::localtime(&t);
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%Y%m%d_%H%M%S");
+        auto str = oss.str();
+
+        std::string name = "model_linear_" + str + ".txt";
+        auto fullpath = path + "/" + name;
+        file.open(fullpath);
+        file << nb_features << "\n";
+        for(auto j = 0; j < nb_features + 1; j++){
+            file << model[j] << ";";
+        }
+
+        file.close();
+
+        std::this_thread::sleep_for (std::chrono::seconds(1));
+    }
+
+    DLLEXPORT double* linear_load_model(char* path_char){
+        std::string path = path_char;
+        std::string line;
+        ifstream file(path);
+        double* linear = nullptr;
+        std::string delimiter = ";";
+        size_t pos = 0;
+        std::string token = "1";
+
+        if(file.is_open()){
+            int nb_features = 0;
+            if(getline(file, line)){
+                nb_features = std::stoi(line);
+            }
+            linear = linear_create_model(nb_features);
+            if(getline(file, line)){
+                int i = 0;
+                while ((pos = line.find(delimiter)) != std::string::npos) {
+                    token = line.substr(0, pos);
+                    linear[i] = std::stof(token);
+                    i++;
+                    line.erase(0, pos + delimiter.length());
+                }
+            }
+            file.close();
+        }
+
+        return linear;
+    }
+
     DLLEXPORT void linear_dispose_model(const double *model) {
         delete[] model;
     }
@@ -178,6 +218,44 @@ extern "C" {
         return mlp->x[mlp->L] + 1;
     }
 
+    DLLEXPORT double* mlp_get_metrics(My_MLP* mlp, double* dataset, int nb_sample, int nb_features, double* expected_outputs, bool mode){
+        int nb_sorti = mlp->layers[mlp->L];
+        auto result = new double[2 + (nb_sorti * nb_sorti)];
+        result[1] = 0;
+        for(auto i = 0; i < 2 + (nb_sorti * nb_sorti); i++){
+            result[i] = 0;
+        }
+        double s = 0.0;
+        int my_model_work = 0;
+        for (auto i = 0; i < nb_sample; i++){
+            auto p = _mlp_predict_common(mlp, dataset + i * nb_features, mode);
+            double f = p[0];
+            int o = 0;
+            auto a = 0.0;
+            int o_p = 0;
+            auto a_p = 0.0;
+            for(auto j = 0; j < nb_sorti; j++){
+                a += (p[j] - expected_outputs[i * nb_sorti + j]) * (p[j] - expected_outputs[i * nb_sorti + j]);
+                if(p[j] > f){
+                    o = j;
+                    f = p[j];
+                }
+                if(expected_outputs[i * nb_sorti + j] > 0){
+                    o_p = j;
+                }
+            }
+            result[o_p * nb_sorti + o + 2]++;
+
+            if(expected_outputs[i * nb_sorti + o] == 1.0){
+                result[1]++;
+            }
+            s += a / nb_sorti;
+        }
+        result[0] = s / nb_sample;
+        result[1] = result[1] / nb_sample;
+        return result;
+    }
+
     void _mlp_train_common(My_MLP* mlp,
             double* dataset_inputs,
             int nb_samples,
@@ -186,43 +264,68 @@ extern "C" {
             int nb_features_expected,
             int iterations,
             double alpha,
-            bool classification_mode){
+            bool classification_mode,
+            bool like_keras=false){
         std::random_device rd;
         std::mt19937 mt(rd());
         std::uniform_int_distribution<int> dist(0, nb_samples - 1);
-
         for(auto it = 0; it < iterations; it++){
-            auto k = dist(mt);
-            auto inputs_k = dataset_inputs + k * nb_features;
-            auto expectes_k = dataset_expected + k * nb_features_expected;
-            _mlp_predict_common(mlp, inputs_k, classification_mode);
-
-            for(auto j = 1; j < mlp->layers[mlp->L] + 1; j++){
-                mlp->deltas[mlp->L][j] = mlp->x[mlp->L][j] - expectes_k[j - 1];
-                if(classification_mode){
-                    mlp->deltas[mlp->L][j] *= 1 - mlp->x[mlp->L][j] * mlp->x[mlp->L][j];
-                }
+            int nb_it = 1;
+            if(like_keras){
+                nb_it = nb_samples;
             }
+            for(auto p = 0; p < nb_it; p++){
+                auto k = dist(mt);
+                auto inputs_k = dataset_inputs + k * nb_features;
+                auto expectes_k = dataset_expected + k * nb_features_expected;
+                if(like_keras){
+                    inputs_k = dataset_inputs + p * nb_features;
+                    expectes_k = dataset_expected + p * nb_features_expected;
+                }
+                _mlp_predict_common(mlp, inputs_k, classification_mode);
 
-            for(auto l = mlp->L; l > 1; l--){
-                for(auto i = 1; i < mlp->layers[l - 1] + 1; i++){
-                    auto sum = 0.0;
-                    for(auto j = 1; j < mlp->layers[l] + 1; j++){
-                        sum += mlp->w[l][i][j] * mlp->deltas[l][j];
+                for(auto j = 1; j < mlp->layers[mlp->L] + 1; j++){
+                    mlp->deltas[mlp->L][j] = mlp->x[mlp->L][j] - expectes_k[j - 1];
+                    if(classification_mode){
+                        mlp->deltas[mlp->L][j] *= 1 - mlp->x[mlp->L][j] * mlp->x[mlp->L][j];
                     }
-                    sum *= 1 - mlp->x[l-1][i] * mlp->x[l-1][i];
-                    mlp->deltas[l-1][i] = sum;
                 }
-            }
 
-            for(auto l = 1; l < mlp->L + 1; l++){
-                for(auto i = 0; i < mlp->layers[l-1] + 1; i++){
-                    for(auto j = 1; j < mlp->layers[l] + 1; j++){
-                        mlp->w[l][i][j] -= alpha * mlp->x[l-1][i] * mlp->deltas[l][j];
+                for(auto l = mlp->L; l > 1; l--){
+                    for(auto i = 1; i < mlp->layers[l - 1] + 1; i++){
+                        auto sum = 0.0;
+                        for(auto j = 1; j < mlp->layers[l] + 1; j++){
+                            sum += mlp->w[l][i][j] * mlp->deltas[l][j];
+                        }
+                        sum *= 1 - mlp->x[l-1][i] * mlp->x[l-1][i];
+                        mlp->deltas[l-1][i] = sum;
+                    }
+                }
+
+                for(auto l = 1; l < mlp->L + 1; l++){
+                    for(auto i = 0; i < mlp->layers[l-1] + 1; i++){
+                        for(auto j = 1; j < mlp->layers[l] + 1; j++){
+                            mlp->w[l][i][j] -= alpha * mlp->x[l-1][i] * mlp->deltas[l][j];
+                        }
                     }
                 }
             }
         }
+    }
+
+    DLLEXPORT double* train_with_retrieve_metrics(
+            My_MLP* mlp,
+            double* dataset_inputs,
+            int nb_samples,
+            int nb_features,
+            double* dataset_expected,
+            int nb_features_expected,
+            double alpha,
+            bool classification_mode,
+            bool like_keras){
+        _mlp_train_common(mlp,dataset_inputs,nb_samples,nb_features,dataset_expected,nb_features_expected,1,alpha,classification_mode,like_keras);
+        auto loss = mlp_get_metrics(mlp, dataset_inputs, nb_samples, nb_features, dataset_expected, classification_mode);
+        return loss;
     }
 
     DLLEXPORT double* mlp_predict_classification(My_MLP* mlp, double* inputs){
@@ -234,15 +337,17 @@ extern "C" {
         return _mlp_predict_common(mlp, inputs, false);
     }
 
-    DLLEXPORT void mlp_train_classification(My_MLP* mlp,
+    DLLEXPORT void mlp_train_classification(
+            My_MLP* mlp,
             double* dataset_inputs,
             int nb_samples,
             int nb_features,
             double* dataset_expected,
             int nb_features_expected,
             double alpha,
-            int iterations){
-        _mlp_train_common(mlp, dataset_inputs, nb_samples, nb_features, dataset_expected, nb_features_expected, iterations, alpha, true);
+            int iterations,
+            bool like_keras=false){
+        _mlp_train_common(mlp, dataset_inputs, nb_samples, nb_features, dataset_expected, nb_features_expected, iterations, alpha, true, like_keras);
     }
 
     DLLEXPORT void mlp_train_regression(My_MLP* mlp,
@@ -252,8 +357,9 @@ extern "C" {
             double* dataset_expected,
             int nb_features_expected,
             double alpha,
-            int iterations){
-        _mlp_train_common(mlp, dataset_inputs, nb_samples, nb_features, dataset_expected, nb_features_expected, iterations, alpha, false);
+            int iterations,
+            bool like_keras=false){
+        _mlp_train_common(mlp, dataset_inputs, nb_samples, nb_features, dataset_expected, nb_features_expected, iterations, alpha, false, like_keras);
     }
 
     DLLEXPORT My_MLP* mlp_create_model(int* layers, int nb_layer){
@@ -439,32 +545,28 @@ extern "C" {
         int nb_sample;
         int nb_feature;
         int nb_outputs;
-        double alpha;
+        double gamma;
         double* result;
-        int nb_clusters;
     } typedef rbf;
 
 
     //-- Debut RBF -------------------------------------------------------------------------------------------------
 
-    DLLEXPORT rbf* rbf_create_model(int nb_sample, int nb_outputs ,double alpha){
+    DLLEXPORT rbf* rbf_create_model(){
         std::random_device rd;
         std::mt19937 mt(rd());
         std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
         auto my_rbf = new rbf;
-        my_rbf->w = new double*[nb_sample];
-        my_rbf->alpha = alpha;
-        my_rbf->nb_sample = nb_sample;
-        my_rbf->nb_outputs = nb_outputs;
-        my_rbf->result = new double[nb_outputs];
-        my_rbf->dataset = new double[nb_sample];
+        my_rbf->w = new double*[1];
+        my_rbf->gamma = 0.0;
+        my_rbf->nb_sample = 1;
+        my_rbf->nb_outputs = 1;
+        my_rbf->result = new double[1];
+        my_rbf->dataset = new double[1];
 
-        for(auto i = 0; i < nb_sample; i++){
-            my_rbf->w[i] = new double[nb_outputs];
-            for(auto j = 0; j < nb_outputs; j++){
-                my_rbf->w[i][j] = dist(mt);
-            }
+        for(auto i = 0; i < 1; i++){
+            my_rbf->w[i] = new double[1];
         }
 
         return my_rbf;
@@ -475,10 +577,11 @@ extern "C" {
         for(auto i = 0; i < features; i++){
             s += (x[i] - y[i]) * (x[i] - y[i]);
         }
-        return sqrt(s);
+        return sqrt(abs(s));
     }
 
     double* _get_k_means(double* dataset, int nb_samples, int nb_features, int nb_clusters){
+
         auto representant = new double[nb_clusters * nb_features];
         auto representant_save = new double[nb_clusters * nb_features];
         auto sample_cluster = new int[nb_samples];
@@ -488,25 +591,28 @@ extern "C" {
         std::mt19937 mt(rd());
         std::uniform_int_distribution<int> dist(0, nb_samples);
 
+        auto potential_points = new double[nb_samples];
+        for(auto i = 0; i < nb_samples; i++){
+            potential_points[i] = 0;
+        }
+
+        int c = 0;
+        int o = 0;
         // Tirage au sort sur les points du dataset de representants
         for(auto i = 0; i < nb_clusters; i++){
-            int check = 1;
-            int loops = 0;
-            int c = 0;
-            while(check != 0 && loops < 1000){
-                c = dist(mt);
-                check = 0;
-                for(auto y = 0; y < nb_clusters; y++){
-                    if(count_cluster[y] == c){
-                        check++;
-                    }
+            c = dist(mt);
+            if(potential_points[c] == 0){
+                potential_points[c] = 1;
+            } else {
+                while(potential_points[c] == 1){
+                    c++;
+                    c = c > nb_samples ? 0 : c;
                 }
-                loops++;
             }
-            count_cluster[i] = c;
             for(auto j = 0; j < nb_features; j++){
-                (representant + i * nb_features)[j] = (dataset + c * nb_features)[j];
-                (representant_save + i * nb_features)[j] = (dataset + c * nb_features)[j];
+                representant[o] = (dataset + c * nb_features)[j];
+                representant_save[o] = (dataset + c * nb_features)[j];
+                o++;
             }
         }
 
@@ -554,10 +660,10 @@ extern "C" {
 
             //Vérification que la situation à changé
             same_state = true;
-            int c = 0;
+            c = 0;
             for(auto i = 0; i < nb_clusters; i++){
                 for(auto j = 0; j < nb_features; j++){
-                    if(abs(representant[c] - representant_save[c]) > 0.01){
+                    if(abs(representant[c] - representant_save[c]) > 0.001){
                         same_state = false;
                     }
                     representant_save[c] = representant[c];
@@ -574,40 +680,49 @@ extern "C" {
         return representant;
     }
 
+    double* _rbf_copy_dataset(double* dataset, int nb_sample, int nb_feature){
+        auto r = new double[nb_sample * nb_feature];
+        for(auto i = 0; i < nb_sample * nb_feature; i++){
+            r[i] = dataset[i];
+        }
+        return r;
+    }
+
     DLLEXPORT void rbf_train(rbf* rbf,
         double* dataset_inputs,
         int nb_samples,
         int nb_features,
         double* dataset_expected,
         int nb_features_expected,
-        int nb_clusters
+        int nb_clusters,
+        double gamma
     ){
-        rbf->nb_clusters = nb_clusters;
+        rbf->gamma = gamma;
         rbf->nb_feature = nb_features;
-        auto m = new double[nb_samples * nb_samples];
-        double* representants;
-        int nb_sample_representant;
 
-        if(nb_clusters > 1){
-            representants = _get_k_means(dataset_inputs, nb_samples, nb_features, nb_clusters);
-            nb_sample_representant = nb_clusters;
-        } else {
-            representants = dataset_inputs;
-            nb_sample_representant = nb_samples;
+        for(auto i = 0; i < rbf->nb_sample; i++){
+            delete[] rbf->w[i];
+        }
+        delete[] rbf->w;
+        delete[] rbf->dataset;
+
+        rbf->nb_sample = nb_clusters > 1 ? nb_clusters : nb_samples;
+        rbf->dataset = nb_clusters > 1 ? _get_k_means(dataset_inputs, nb_samples, nb_features, nb_clusters) : _rbf_copy_dataset(dataset_inputs, rbf->nb_sample, rbf->nb_feature);
+
+        rbf->w = new double*[rbf->nb_sample];
+        for(auto i = 0; i < rbf->nb_sample; i++){
+            rbf->w[i] = new double[rbf->nb_outputs];
         }
 
-        rbf->dataset = new double[nb_sample_representant * nb_features];
-        for(auto i = 0; i < nb_sample_representant * nb_features; i++){
-            rbf->dataset[i] = representants[i];
-        }
+        auto m = new double[nb_samples * rbf->nb_sample];
 
         int c = 0;
         for(auto i = 0; i < nb_samples; i++){
             auto x = dataset_inputs + i * nb_features;
-            for(auto j = 0; j < nb_sample_representant; j++){
-                auto y = representants + j * nb_features;
+            for(auto j = 0; j < rbf->nb_sample; j++){
+                auto y = rbf->dataset + j * nb_features;
                 auto distance = _get_distance_norme_two(nb_features, x, y);
-                m[c] = exp(0 - (rbf->alpha * pow(distance,2)));
+                m[c] = exp((0 - rbf->gamma) *  pow(distance,2));
                 c++;
             }
         }
@@ -625,17 +740,11 @@ extern "C" {
             w = m_matrix.inverse() * y_matrix;
         }
 
-        auto r = new double[nb_samples * nb_features_expected];
-        Eigen::Map<MatrixXd>(r, w.rows(), w.cols()) = w;
-
-        c = 0;
         for(auto i = 0; i < rbf->nb_sample; i++){
             for(auto j = 0; j < rbf->nb_outputs; j++){
-                rbf->w[i][j] = r[c];
-                c++;
+                rbf->w[i][j] = w(i, j);
             }
         }
-        delete[] r;
         delete[] m;
     }
 
@@ -643,22 +752,31 @@ extern "C" {
         for(auto i = 0; i < rbf->nb_outputs; i++){
             rbf->result[i] = 0.0;
         }
-        int samples = rbf->nb_sample;
-        if(rbf->nb_clusters > 1){
-            samples = rbf->nb_clusters;
-        }
-        for(auto i = 0; i < samples; i++){
+
+        for(auto i = 0; i < rbf->nb_sample; i++){
             auto distance = _get_distance_norme_two(rbf->nb_feature, input, rbf->dataset + i * rbf->nb_feature);
             for(auto j = 0; j < rbf->nb_outputs; j++){
-                rbf->result[j] += rbf->w[i][j] * exp(0 - (rbf->alpha * pow(distance, 2)));
+                rbf->result[j] += rbf->w[i][j] * exp((0 - rbf->gamma) * pow(distance, 2));
             }
         }
     }
 
     DLLEXPORT double* rbf_predict_classification(rbf* rbf, double* input){
         _rbf_predict_common(rbf, input);
-        for(auto i = 0; i < rbf->nb_outputs; i++){
-            rbf->result[i] = rbf->result[i] < 0.0 ? -1.0 : 1.0;
+        if(rbf->nb_outputs == 1){
+            rbf->result[0] = rbf->result[0] > 0.0 ? 1.0 : -1.0;
+        } else {
+            double max = rbf->result[0];
+            int i = 0;
+            for(auto j = 0; j < rbf->nb_outputs; j++){
+                if(rbf->result[j] > max){
+                    max = rbf->result[j];
+                    i = j;
+                }
+            }
+            for(auto j = 0; j < rbf->nb_outputs; j++){
+                rbf->result[j] = i == j ? 1.0 : -1.0;
+            }
         }
 
         return rbf->result;
@@ -683,6 +801,95 @@ extern "C" {
         delete rbf;
     }
 
+    DLLEXPORT void rbf_save_model(rbf* rbf, char* path_char){
+        std::ofstream file;
+        std::string path = path_char;
+
+        auto t = std::time(nullptr);
+        auto tm = *std::localtime(&t);
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%Y%m%d_%H%M%S");
+        auto str = oss.str();
+
+        std::string name = "model_rbf_" + str + ".txt";
+        auto fullpath = path + "/" + name;
+        file.open(fullpath);
+
+
+        file << rbf->nb_sample << ";" << rbf->nb_feature << ";" << rbf->nb_outputs << ";" << rbf->gamma << ";" << "\n";
+
+        for(auto i = 0; i < rbf->nb_sample; i++){
+            for(auto j = 0; j < rbf->nb_feature; j++){
+                file << fixed << setprecision(15) << rbf->dataset[i * rbf->nb_feature + j] << ";";
+            }
+            file << "\n";
+        }
+        for(auto i = 0; i < rbf->nb_sample; i++){
+            for(auto j = 0; j < rbf->nb_outputs; j++){
+                file << fixed << setprecision(15) << rbf->w[i][j] << ";";
+            }
+            file << "\n";
+        }
+        file.close();
+
+        std::this_thread::sleep_for (std::chrono::seconds(1));
+    }
+
+    DLLEXPORT rbf* rbf_load_model(char* path_char){
+        std::string path = path_char;
+        std::string line;
+        ifstream file(path);
+        rbf* rbf = nullptr;
+        std::string delimiter = ";";
+        size_t pos = 0;
+        std::string token = "1";
+
+        if(file.is_open()){
+            auto data = new double[5];
+            if(getline(file, line)){
+                int count = 0;
+                while ((pos = line.find(delimiter)) != std::string::npos) {
+                    token = line.substr(0, pos);
+                    data[count] = std::stof(token);
+                    line.erase(0, pos + delimiter.length());
+                    count++;
+                }
+            }
+
+            rbf = rbf_create_model();
+            rbf->nb_sample = data[0];
+            rbf->nb_feature = data[1];
+            rbf->nb_outputs = data[2];
+            rbf->gamma = data[3];
+
+            int count = 0;
+            for(auto i = 0; i < rbf->nb_sample; i++){
+                if(getline(file, line)){
+                    while ((pos = line.find(delimiter)) != std::string::npos) {
+                        token = line.substr(0, pos);
+                        rbf->dataset[count] = std::stof(token);
+                        line.erase(0, pos + delimiter.length());
+                        count++;
+                    }
+                }
+            }
+
+            for(auto i = 0; i < rbf->nb_sample; i++){
+                if(getline(file, line)){
+                    count = 0;
+                    while ((pos = line.find(delimiter)) != std::string::npos) {
+                        token = line.substr(0, pos);
+                        rbf->w[i][count] = std::stof(token);
+                        line.erase(0, pos + delimiter.length());
+                        count++;
+                    }
+                }
+            }
+            file.close();
+        }
+        return rbf;
+    }
+
 
     //-- Fin RBF -------------------------------------------------------------------------------------------------
 
@@ -702,10 +909,15 @@ extern "C" {
     }
 
     double kernel_trick(double* X, double* Y, int nb_features){
-        double s = 0.0;
+        double x_scalaire = 0.0;
+        double y_scalaire = 0.0;
+        double x_y_scalaire = 0.0;
         for(auto i = 0; i < nb_features; i++){
-            s += exp(0-(X[i] * X[i])) * exp(0-(Y[i] * Y[i])) * exp(2 * X[i] * Y[i]);
+            x_scalaire += pow(0-X[i], 2);
+            y_scalaire += pow(0-Y[i], 2);
+            x_y_scalaire += X[i] * Y[i];
         }
+        double s = exp(x_scalaire) * exp(y_scalaire) * exp(2 * x_y_scalaire);
         return s;
     }
 
@@ -739,7 +951,9 @@ extern "C" {
             ct[i] = 1;
             o++;
         }
-
+        /*
+        int o = 0;
+        auto constraint = new double[nb_inputs + 1];*/
         for(int i = 0; i < nb_inputs; i++){
             lbnd[i] = 0.0;
             ubnd[i] = ma;
@@ -780,56 +994,35 @@ extern "C" {
         minqpcreate(nb_inputs, state);
         minqpsetquadraticterm(state, a);
         minqpsetlinearterm(state, b);
-        minqpsetbc(state, lbnd, ubnd);
+        //minqpsetbc(state, lbnd, ubnd);
         minqpsetlc(state, c, ct);
-
-        cout << c.tostring(1).c_str() << endl;
-        cout << ct.tostring().c_str() << endl;
-
-        o = 0;
-        for(auto i = 0; i < nb_inputs; i++){
-            for(auto j = 0; j < nb_inputs; j++){
-                printf("%f  ", kernel[o]);
-                o++;
-            }
-            printf("\n");
-        }
 
         minqpsetalgobleic(state, 0, 0, 0.01, 0);
         minqpoptimize(state);
         minqpresults(state, x, rep);
 
-        for(auto i = 0; i < nb_inputs; i++){
-            printf("[");
-            for(auto j = 0; j < nb_features; j++){
-                printf("%f, ", inputs[i * nb_features + j]);
-            }
-            printf("]  :  %f\n", x[i]);
-        }
-
-        int m = -1;
+        int m = 0;
         auto W = new double[nb_features+1];
         for(auto i = 0; i < nb_features + 1; i++){
             W[i] = 0.0;
         }
         auto max = x[0];
+
         for(auto i = 0; i < nb_inputs; i++){
             if(x[i] > max){
                 m = i;
                 max = x[i];
             }
+            x[i] = abs(x[i]) < 0.01 ? 0.0 : x[i];
+            cout << x[i] << endl;
             for(auto j = 0; j < nb_features; j++){
                 W[j+1] += x[i] * labels[i] * inputs[i * nb_features + j];
             }
         }
-
-        if(m != -1){
-            W[0] = (1 / labels[m]);
-            for(auto i = 0; i < nb_features; i++){
-                W[0] -= W[i+1] * inputs[m * nb_features + i];
-            }
-        } else {
-            W[0] = 0;
+        cout << m << "   vecteur choose : " << x[m] << endl;
+        W[0] = (1 / labels[m]);
+        for(auto i = 0; i < nb_features; i++){
+            W[0] -= W[i+1] * inputs[m * nb_features + i];
         }
 
         for(auto i = 0; i < nb_features + 1; i++){
@@ -856,6 +1049,62 @@ extern "C" {
         delete[] model->W;
     }
 
+    DLLEXPORT void svm_save_model(SVM* svm, char* path_char){
+        std::ofstream file;
+        std::string path = path_char;
+
+        auto t = std::time(nullptr);
+        auto tm = *std::localtime(&t);
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%Y%m%d_%H%M%S");
+        auto str = oss.str();
+
+        std::string name = "model_svm_" + str + ".txt";
+        auto fullpath = path + "/" + name;
+        file.open(fullpath);
+
+        file << svm->w_size << "\n";
+
+        for(auto i = 0; i < svm->w_size; i++){
+            file << fixed << setprecision(15) << svm->W[i] << ";";
+        }
+
+        file.close();
+
+        std::this_thread::sleep_for (std::chrono::seconds(1));
+    }
+
+    DLLEXPORT SVM* svm_load_model(char* path_char){
+        std::string path = path_char;
+        std::string line;
+        ifstream file(path);
+        SVM* svm = nullptr;
+        std::string delimiter = ";";
+        size_t pos = 0;
+        std::string token = "1";
+
+        int nb_feature = 0;
+        if(file.is_open()){
+            if(getline(file, line)){
+                nb_feature = std::stoi(line);
+            }
+
+            svm = svm_create_model(nb_feature - 1);
+            svm->w_size = nb_feature;
+            int count = 0;
+            if(getline(file, line)){
+                while ((pos = line.find(delimiter)) != std::string::npos) {
+                    token = line.substr(0, pos);
+                    svm->W[count] = std::stof(token);
+                    line.erase(0, pos + delimiter.length());
+                    count++;
+                }
+            }
+            file.close();
+        }
+        return svm;
+    }
+
     //-- Fin SVM -----------------------------------------------------------------------------------------------
 }
 
@@ -865,38 +1114,87 @@ int main(){
     int nb_sample = 3;
     int nb_features = 2;
     int nb_features_outputs = 1;
-    double alpha = 0.1;
+    double alpha = 0.01;
+    int iteration = 100;
     int nb_clusters = 2;
+
+    int nb_X = 10;
+    int nb_Y = 10;
+
+    nb_sample = nb_X * nb_Y;
+    /*
     auto X = new double*[nb_sample];
-    X[0] = new double[nb_features];
-    X[0][0] = 1.0;
-    X[0][1] = 1.0;
-    X[1] = new double[nb_features];
-    X[1][0] = 2.0;
-    X[1][1] = 3.0;
-    X[2] = new double[nb_features];
-    X[2][0] = 3.0;
-    X[2][1] = 3.0;
-/*
-    X[3] = new double[nb_features];
-    X[3][0] = 4.0;
-    X[3][1] = 4.0;
-    X[4] = new double[nb_features];
-    X[4][0] = 3.0;
-    X[4][1] = 1.0;*/
+    for(auto i = 0; i < nb_X; i++){
+        for(auto j = 0; j < nb_Y; j++){
+            X[i * nb_Y + j] = new double[nb_features];
+            X[i * nb_Y + j][0] = i;
+            X[i * nb_Y + j][1] = j;
+        }
+    }
 
     auto Y = new double*[nb_sample];
-    Y[0] = new double[nb_features_outputs];
-    Y[0][0] = 1.0;
-    Y[1] = new double[nb_features_outputs];
-    Y[1][0] = -1.0;
-    Y[2] = new double[nb_features_outputs];
-    Y[2][0] = -1.0;
-/*
-    Y[3] = new double[nb_features_outputs];
-    Y[3][0] = -1.0;
-    Y[4] = new double[nb_features_outputs];
-    Y[4][0] = 1.0;*/
+    for(auto i = 0; i < nb_sample; i++){
+        Y[i] = new double[1];
+        if(X[i][0] < 6){
+            Y[i][0] = 1.0;
+        } else {
+            Y[i][0] = -1.0;
+        }
+    }
+    */
+
+    nb_sample = 40;
+    auto X = new double*[40];
+    for(auto i = 0; i < 40; i++){
+        X[i] = new double[2];
+    }
+    X[0][0] = 1.60347094; X[0][1] = 1.16693448;
+    X[1][0] = 1.30489739; X[1][1] = 1.62661505;
+    X[2][0] = 1.16477863; X[2][1] = 1.44990294;
+    X[3][0] = 1.37319578; X[3][1] = 1.0127223;
+    X[4][0] = 1.65610174; X[4][1] = 1.47902849;
+    X[5][0] = 1.36684749; X[5][1] = 1.77563461;
+    X[6][0] = 1.02980506; X[6][1] = 1.56341694;
+    X[7][0] = 1.02925712; X[7][1] = 1.60537159;
+    X[8][0] = 1.76852481; X[8][1] = 1.13915218;
+    X[9][0] = 1.74024371; X[9][1] = 1.01481541;
+    X[10][0] = 1.78204282; X[10][1] = 1.34259493;
+    X[11][0] = 1.60973192; X[11][1] = 1.70290689;
+    X[12][0] = 1.57323083; X[12][1] = 1.0465343;
+    X[13][0] = 1.27238007; X[13][1] = 1.76992059;
+    X[14][0] = 1.8442367 ; X[14][1] = 1.40572677;
+    X[15][0] = 1.75361148; X[15][1] = 1.32191531;
+    X[16][0] = 1.07216853; X[16][1] = 1.78013893;
+    X[17][0] = 1.27885133; X[17][1] = 1.85698043;
+    X[18][0] = 1.89423394; X[18][1] = 1.70387675;
+    X[19][0] = 1.03782436; X[19][1] = 1.80432737;
+
+    X[20][0] = 2.27624217; X[20][1] = 2.58419508;
+    X[21][0] = 2.64105432; X[21][1] = 2.66721891;
+    X[22][0] = 2.10970416; X[22][1] = 2.58939382;
+    X[23][0] = 2.57328797; X[23][1] = 2.02044592;
+    X[24][0] = 2.29133622; X[24][1] = 2.73514272;
+    X[25][0] = 2.63334756; X[25][1] = 2.33325562;
+    X[26][0] = 2.82357141; X[26][1] = 2.640247;
+    X[27][0] = 2.13019952; X[27][1] = 2.14812977;
+    X[28][0] = 2.09006334; X[28][1] = 2.49612499;
+    X[29][0] = 2.69743864; X[29][1] = 2.87647262;
+    X[30][0] = 2.71201851; X[30][1] = 2.06131197;
+    X[31][0] = 2.23386365; X[31][1] = 2.73238376;
+    X[32][0] = 2.78201307; X[32][1] = 2.10719873;
+    X[33][0] = 2.5250033 ; X[33][1] = 2.55400342;
+    X[34][0] = 2.54833792; X[34][1] = 2.37994476;
+    X[35][0] = 2.32866572; X[35][1] = 2.14322475;
+    X[36][0] = 2.2579218 ; X[36][1] = 2.09528893;
+    X[37][0] = 2.87172345; X[37][1] = 2.79329936;
+    X[38][0] = 2.32268147; X[38][1] = 2.05962109;
+    X[39][0] = 2.68723871; X[39][1] = 2.86047583;
+
+    auto Y = new double*[40];
+    for(auto i = 0; i < 40; i++){
+        Y[i] = new double[1];
+        Y[i][0] = i < 5 || i > 15 ? 1.0 : -1.0;
+    }
 
     auto x_flattened = new double[nb_sample * nb_features];
     int c = 0;
@@ -916,74 +1214,19 @@ int main(){
         }
     }
 
-    // Dataset Test
-    int nb_sample_test = 8;
-    auto X_test = new double*[nb_sample];
-    X_test[0] = new double[nb_features];
-    X_test[0][0] = 1.2;
-    X_test[0][1] = 3.8;
-    X_test[1] = new double[nb_features];
-    X_test[1][0] = 1.2;
-    X_test[1][1] = 4.2;
-    X_test[2] = new double[nb_features];
-    X_test[2][0] = 1.8;
-    X_test[2][1] = 4.2;
-    X_test[3] = new double[nb_features];
-    X_test[3][0] = 2.4;
-    X_test[3][1] = 4.45;
-    X_test[4] = new double[nb_features];
-    X_test[4][0] = 2.0;
-    X_test[4][1] = 5.0;
-    X_test[5] = new double[nb_features];
-    X_test[5][0] = 1.0;
-    X_test[5][1] = 5.0;
-    X_test[6] = new double[nb_features];
-    X_test[6][0] = 1.5;
-    X_test[6][1] = 4.49;
-    X_test[7] = new double[nb_features];
-    X_test[7][0] = 1.5;
-    X_test[7][1] = 4.51;
+    auto model = rbf_create_model();
 
-    auto model = svm_create_model(nb_features);
-    auto model_t = svm_create_model(nb_features);
+    auto gamma = 5.0;
 
-    svm_train_model(model, x_flattened, nb_sample, nb_features, y_flattened, false);
-    svm_train_model(model_t, x_flattened, nb_sample, nb_features, y_flattened, true);
+    rbf_train(model, x_flattened, nb_sample, nb_features, y_flattened, 1, 0, gamma);
 
     for(auto i = 0; i < nb_sample; i++){
-        auto k = svm_predict(model, X[i]);
-        printf("[%f, %f] : %f  %d\n", X[i][0], X[i][1], Y[i][0], k);
+        auto r = rbf_predict_classification(model, X[i]);
+        printf("[%f, %f] : %f     %f)\n", X[i][0], X[i][1], Y[i][0], r[0]);
     }
-    printf("\n\n");
-    for(auto i = 0; i < nb_sample; i++){
-        auto k = svm_predict(model_t, X[i]);
-        printf("[%f, %f] : %f  %d\n", X[i][0], X[i][1], Y[i][0], k);
-    }
-
-    svm_dispose(model);
-    svm_dispose(model_t);
-
-    /*
-    auto x_test_flattened = new double[nb_sample_test * nb_features];
-    c = 0;
-    for(auto i = 0; i < nb_sample_test; i++){
-        for(auto j = 0; j < nb_features; j++){
-            x_test_flattened[c] = X_test[i][j];
-            c++;
-        }
-    }
-
-    auto rbf = rbf_create_model(nb_sample, nb_features_outputs, alpha);
-
-    rbf_train(rbf, x_flattened, nb_sample, nb_features, y_flattened, nb_features_outputs, nb_clusters);
-
-    for(auto i = 0; i < nb_sample; i++){
-        auto r = rbf_predict_classification(rbf, X[i]);
-        printf("(%f, %f)  =>  %f\n",X[i][0], X[i][1], r[0]);
-    }
-
-    rbf_dispose(rbf);
-*/
+    char* path_to_save = "D:/Utilisateurs/Bureau/projet_annuel";
+    rbf_save_model(model, path_to_save);
+    rbf_dispose(model);
 
     return 0;
 }

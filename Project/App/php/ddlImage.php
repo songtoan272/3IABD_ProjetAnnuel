@@ -30,37 +30,38 @@ if($_FILES['fileToUpload']['name'] != ""){
 if($_POST['urlImage'] != "" && $uploaded == false){
     $url = strtolower($_POST['urlImage']);
 
+    
     $ch = curl_init ($url);
+    
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_BINARYTRANSFER,1);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     $raw=curl_exec($ch);
+    curl_close ($ch);
 
     $extension = getExtension(curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
 
-    if(isImage($extension)){
-        $id = generateRandomString() . '.' . $extension;
-        $saveto = "../images/ia/" . $id;
-
-        curl_close ($ch);
-        if(file_exists($saveto)){
-            unlink($saveto);
-        }
-        $fp = fopen($saveto,'x');
-        fwrite($fp, $raw);
-        fclose($fp);
+    if($extension == ''){
+        $extension = 'jpg';
     }
+
+    $id = generateRandomString() . '.' . $extension;
+    $saveto = "../images/ia/" . $id;
+
+    if(file_exists($saveto)){
+        unlink($saveto);
+    }
+    $fp = fopen($saveto,'x');
+    fwrite($fp, $raw);
+    fclose($fp);
 }
 
 $model = getModel($_POST['model']);
-$img_resized = resize_image($saveto, $model['img_width_model'], $model['img_height_model']);
+$img_resized = resize_image($saveto, $model['img_width_model'], $model['img_height_model'], $model['img_conserve_ratio']);
 
-predict_image($model['type_model'], $model['path_model'], $img_resized);
+predict_image($model['id_model'], $model['type_model'], $model['path_model'], $img_resized, $model['result_classes']);
 
 $_SESSION['id'] = $id;
-
-$_SESSION['class'] = getCharacters("cc");
 
 header('Location: http://92.222.76.60/app.php');
 die();

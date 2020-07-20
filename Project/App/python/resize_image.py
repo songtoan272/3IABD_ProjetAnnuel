@@ -21,8 +21,10 @@ def get_all_images(path_images):
 
 if __name__ == "__main__":
     resize_several = False
+    conserve_ratio = False
+    crop_image = True
 
-    width = 70
+    width = 16
     height = width
 
     images = []
@@ -34,21 +36,34 @@ if __name__ == "__main__":
         path = sys.argv[1]
         width = int(sys.argv[2])
         height = int(sys.argv[3])
+        ratio = int(sys.argv[4])
+
+        if ratio == 1:
+            conserve_ratio = True
+            crop_image = False
 
         directory = os.path.dirname(os.path.realpath(path))
         name = os.path.splitext(os.path.basename(path))[0]
         extension = os.path.splitext(os.path.basename(path))[1]
         images.append([path, directory, name, extension])
 
-    conserve_ratio = False
-
     for img in images:
-        if resize_several :
+        if resize_several:
             new_file = img[1] + '/resized/' + img[2] + '.png'
         else:
             new_file = img[1] + '/' + img[2] + '_resized.png'
         with open(img[0], 'r+b') as f:
             with Image.open(f) as image:
+                img_width, img_height = image.size
+
+                if crop_image:
+                    side = min(img_width, img_height)
+                    left = (img_width - side) / 2
+                    right = (img_width + side) / 2
+                    top = 0
+                    bottom = side
+                    image = image.crop((left, top, right, bottom))
+
                 if conserve_ratio:
                     n_im = Image.new('RGBA', (width, height), fill_color)
                     image.thumbnail((width, height), Image.ANTIALIAS)

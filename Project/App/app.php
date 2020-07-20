@@ -33,6 +33,7 @@
 
 					<!-- Logo -->
 						<h1><a href="index.php" id="logo">Projet Annuel 3IABD <em>| LECONTE Guillaume / PINTO Thomas / CAO Song Toan</em></a></h1>
+						<span id='coucou'></span>
 
 					<!-- Nav -->
 						<nav id="nav">
@@ -83,6 +84,8 @@
 			}
 		?>
 		</select>
+		&nbsp;&nbsp;
+		<input type="button" id="metrics" onClick="getMetrics();" value="Look metrics">
 			</br>
 			</br>
 			<input type="text" name="urlImage" id ="urlImage" placeholder="Url" style="display:inline;margin-right:50px;margin-left:50px;width:70%;">
@@ -117,12 +120,13 @@
 				'<script>
 				$(document).ready(function(){
 					$.ajax({
-						url: "php/predict.php?model_path='.$_SESSION['model_path'].'&img_path='.$_SESSION['img_path'].'&model_type='.$_SESSION['model_type'].'",
+						url: "php/predict.php?model_id='.$_SESSION['model_id'].'&model_path='.$_SESSION['model_path'].'&img_path='.$_SESSION['img_path'].'&model_type='.$_SESSION['model_type'].'&result='.$_SESSION['result_classes'].'",
 						type: "GET",
 						dataType: "json",
 						success: function(result){
 								document.getElementById("char_img").setAttribute("src", result["path"]);
 								document.getElementById("char_name").innerHTML = result["name"];
+								//document.getElementById("coucou").innerHTML = result["debug"];
 							},
 						error : function() {
 							alert("Une erreur est survenue");
@@ -132,5 +136,11 @@
 				</script>';
 			}
 		?>
+		<script>
+			function getMetrics(){
+				id_model = document.getElementById('model').value;
+				window.open('http://92.222.76.60/display_metrics.php?model_id=' + id_model, '_blank');
+			}
+		</script>
 	</body>
 </html>

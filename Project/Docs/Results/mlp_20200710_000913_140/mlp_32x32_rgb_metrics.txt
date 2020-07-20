@@ -1,0 +1,156 @@
+MLP : 
+[3072, 256, 3, ]
+alpha : 0.001
+itération : 140
+shuffle : True
+train all samples every loop : True
+images size : 32x32
+
+0  -  Loss : 1.55816    - Accurate : 0.39816
+1  -  Loss : 1.26112    - Accurate : 0.46162
+2  -  Loss : 1.12403    - Accurate : 0.52712
+3  -  Loss : 1.03053    - Accurate : 0.52303
+4  -  Loss : 1.00136    - Accurate : 0.55988
+5  -  Loss : 0.92031    - Accurate : 0.57318
+6  -  Loss : 0.86961    - Accurate : 0.59263
+7  -  Loss : 0.85347    - Accurate : 0.61208
+8  -  Loss : 0.83642    - Accurate : 0.60901
+9  -  Loss : 0.81509    - Accurate : 0.63153
+10  -  Loss : 0.79453    - Accurate : 0.62948
+11  -  Loss : 0.78511    - Accurate : 0.63664
+12  -  Loss : 0.76772    - Accurate : 0.64790
+13  -  Loss : 0.74698    - Accurate : 0.65302
+14  -  Loss : 0.83996    - Accurate : 0.61617
+15  -  Loss : 0.70046    - Accurate : 0.67861
+16  -  Loss : 0.77297    - Accurate : 0.66428
+17  -  Loss : 0.69391    - Accurate : 0.67758
+18  -  Loss : 0.69680    - Accurate : 0.67451
+19  -  Loss : 0.64599    - Accurate : 0.69498
+20  -  Loss : 0.63991    - Accurate : 0.70010
+21  -  Loss : 0.63237    - Accurate : 0.70727
+22  -  Loss : 0.61283    - Accurate : 0.71341
+23  -  Loss : 0.68174    - Accurate : 0.71238
+24  -  Loss : 0.58242    - Accurate : 0.72876
+25  -  Loss : 0.57395    - Accurate : 0.75026
+26  -  Loss : 0.54495    - Accurate : 0.75947
+27  -  Loss : 0.53428    - Accurate : 0.74923
+28  -  Loss : 0.52946    - Accurate : 0.75128
+29  -  Loss : 0.51619    - Accurate : 0.75333
+30  -  Loss : 0.49359    - Accurate : 0.76868
+31  -  Loss : 0.49564    - Accurate : 0.76561
+32  -  Loss : 0.48036    - Accurate : 0.77687
+33  -  Loss : 0.50641    - Accurate : 0.77687
+34  -  Loss : 0.47248    - Accurate : 0.78096
+35  -  Loss : 0.45077    - Accurate : 0.78403
+36  -  Loss : 0.45110    - Accurate : 0.79734
+37  -  Loss : 0.42952    - Accurate : 0.78710
+38  -  Loss : 0.42141    - Accurate : 0.79529
+39  -  Loss : 0.41234    - Accurate : 0.79324
+40  -  Loss : 0.39601    - Accurate : 0.80450
+41  -  Loss : 0.38970    - Accurate : 0.80553
+42  -  Loss : 0.40371    - Accurate : 0.79734
+43  -  Loss : 0.37333    - Accurate : 0.80757
+44  -  Loss : 0.37715    - Accurate : 0.80450
+45  -  Loss : 0.36693    - Accurate : 0.82293
+46  -  Loss : 0.35756    - Accurate : 0.82395
+47  -  Loss : 0.34283    - Accurate : 0.82702
+48  -  Loss : 0.35118    - Accurate : 0.81372
+49  -  Loss : 0.34712    - Accurate : 0.82088
+50  -  Loss : 0.33893    - Accurate : 0.82497
+51  -  Loss : 0.35440    - Accurate : 0.82497
+52  -  Loss : 0.32049    - Accurate : 0.82907
+53  -  Loss : 0.32989    - Accurate : 0.83214
+54  -  Loss : 0.32141    - Accurate : 0.84135
+55  -  Loss : 0.31882    - Accurate : 0.83726
+56  -  Loss : 0.34504    - Accurate : 0.82702
+57  -  Loss : 0.33542    - Accurate : 0.83316
+58  -  Loss : 0.30544    - Accurate : 0.84340
+59  -  Loss : 0.31667    - Accurate : 0.83623
+60  -  Loss : 0.32272    - Accurate : 0.84135
+61  -  Loss : 0.31077    - Accurate : 0.83726
+62  -  Loss : 0.29676    - Accurate : 0.84852
+63  -  Loss : 0.29688    - Accurate : 0.85261
+64  -  Loss : 0.28128    - Accurate : 0.85056
+65  -  Loss : 0.30037    - Accurate : 0.84545
+66  -  Loss : 0.27735    - Accurate : 0.85670
+67  -  Loss : 0.27342    - Accurate : 0.85568
+68  -  Loss : 0.26622    - Accurate : 0.85977
+69  -  Loss : 0.26548    - Accurate : 0.86285
+70  -  Loss : 0.26738    - Accurate : 0.85670
+71  -  Loss : 0.26641    - Accurate : 0.86387
+72  -  Loss : 0.26703    - Accurate : 0.86080
+73  -  Loss : 0.27063    - Accurate : 0.85977
+74  -  Loss : 0.25537    - Accurate : 0.85977
+75  -  Loss : 0.25628    - Accurate : 0.86182
+76  -  Loss : 0.24189    - Accurate : 0.86899
+77  -  Loss : 0.26962    - Accurate : 0.86285
+78  -  Loss : 0.24859    - Accurate : 0.86489
+79  -  Loss : 0.25388    - Accurate : 0.86899
+80  -  Loss : 0.23921    - Accurate : 0.87410
+81  -  Loss : 0.23932    - Accurate : 0.86899
+82  -  Loss : 0.23920    - Accurate : 0.87206
+83  -  Loss : 0.23646    - Accurate : 0.87103
+84  -  Loss : 0.24163    - Accurate : 0.86694
+85  -  Loss : 0.22748    - Accurate : 0.87103
+86  -  Loss : 0.22898    - Accurate : 0.87103
+87  -  Loss : 0.22681    - Accurate : 0.87001
+88  -  Loss : 0.22553    - Accurate : 0.87513
+89  -  Loss : 0.22784    - Accurate : 0.87308
+90  -  Loss : 0.22004    - Accurate : 0.87615
+91  -  Loss : 0.22238    - Accurate : 0.87513
+92  -  Loss : 0.22181    - Accurate : 0.87206
+93  -  Loss : 0.21963    - Accurate : 0.87513
+94  -  Loss : 0.21756    - Accurate : 0.87513
+95  -  Loss : 0.21968    - Accurate : 0.87922
+96  -  Loss : 0.21615    - Accurate : 0.87513
+97  -  Loss : 0.21512    - Accurate : 0.87410
+98  -  Loss : 0.21264    - Accurate : 0.87615
+99  -  Loss : 0.21403    - Accurate : 0.87718
+100  -  Loss : 0.21150    - Accurate : 0.87718
+101  -  Loss : 0.21562    - Accurate : 0.87820
+102  -  Loss : 0.21096    - Accurate : 0.87820
+103  -  Loss : 0.20653    - Accurate : 0.87615
+104  -  Loss : 0.21187    - Accurate : 0.88025
+105  -  Loss : 0.20479    - Accurate : 0.87615
+106  -  Loss : 0.21225    - Accurate : 0.87718
+107  -  Loss : 0.20602    - Accurate : 0.87922
+108  -  Loss : 0.20853    - Accurate : 0.87820
+109  -  Loss : 0.20679    - Accurate : 0.87922
+110  -  Loss : 0.20792    - Accurate : 0.88127
+111  -  Loss : 0.20841    - Accurate : 0.88025
+112  -  Loss : 0.20286    - Accurate : 0.87922
+113  -  Loss : 0.20306    - Accurate : 0.88127
+114  -  Loss : 0.20248    - Accurate : 0.88229
+115  -  Loss : 0.20533    - Accurate : 0.88332
+116  -  Loss : 0.20836    - Accurate : 0.88332
+117  -  Loss : 0.20238    - Accurate : 0.88434
+118  -  Loss : 0.20429    - Accurate : 0.88434
+119  -  Loss : 0.19965    - Accurate : 0.88332
+120  -  Loss : 0.20222    - Accurate : 0.88434
+121  -  Loss : 0.19898    - Accurate : 0.88639
+122  -  Loss : 0.20007    - Accurate : 0.88332
+123  -  Loss : 0.20666    - Accurate : 0.88536
+124  -  Loss : 0.19875    - Accurate : 0.88332
+125  -  Loss : 0.19713    - Accurate : 0.88434
+126  -  Loss : 0.19597    - Accurate : 0.88536
+127  -  Loss : 0.19645    - Accurate : 0.88536
+128  -  Loss : 0.19470    - Accurate : 0.88639
+129  -  Loss : 0.19465    - Accurate : 0.88639
+130  -  Loss : 0.19268    - Accurate : 0.88741
+131  -  Loss : 0.19215    - Accurate : 0.88536
+132  -  Loss : 0.19140    - Accurate : 0.88741
+133  -  Loss : 0.19035    - Accurate : 0.88843
+134  -  Loss : 0.19025    - Accurate : 0.88843
+135  -  Loss : 0.18990    - Accurate : 0.88639
+136  -  Loss : 0.19152    - Accurate : 0.88741
+137  -  Loss : 0.18951    - Accurate : 0.88843
+138  -  Loss : 0.18908    - Accurate : 0.88946
+139  -  Loss : 0.19104    - Accurate : 0.88946
+140  -  Loss : 0.18757    - Accurate : 0.88946
+----------------------------------------------
+       337         4        13
+        20       222        18
+        24        29       310
+----------------------------------------------
+Train : 0.8894575230296827
+Test : 0.7
